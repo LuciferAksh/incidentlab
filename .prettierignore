@@ -1,0 +1,6 @@
+node_modules
+web/dist
+data
+.venv
+package-lock.json
+requirements.lock

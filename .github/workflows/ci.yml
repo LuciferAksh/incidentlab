@@ -1,0 +1,48 @@
+name: IncidentLab verification
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install Python dependencies
+        run: |
+          python -m pip install -r requirements.lock
+          python -m pip install --no-deps -e '.[dev]'
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Typecheck and build dashboard
+        run: npm run build
+      - name: Python static checks
+        run: |
+          python -m ruff check incidentlab scripts tests
+          python -m ruff format --check incidentlab scripts tests
+      - name: Frontend and documentation format
+        run: npm run format:check
+      - name: Unit and API tests
+        run: python -m pytest -q
+      - name: Real-service experiments
+        run: python scripts/verify.py --start --rounds 2
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-evidence
+          path: |
+            data/verification.json
+            data/*.log
