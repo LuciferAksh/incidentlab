@@ -23,7 +23,7 @@ export default function IncidentDetail({
         </p>
       )}
       {!incident ? (
-        <Empty title="Loading evidence">Fetching the saved experimentâ€¦</Empty>
+        <Empty title="Loading evidence">Fetching the saved experiment…</Empty>
       ) : (
         <>
           <div className="trace-summary">

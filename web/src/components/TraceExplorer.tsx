@@ -16,14 +16,14 @@ export default function TraceExplorer({ onTrace }: { onTrace: (id: string) => vo
     <section className="panel">
       <div className="panel-heading spread">
         <h2>Recent request traces</h2>
-        <span className="badge neutral">Latest 60 Â· 1 hour</span>
+        <span className="badge neutral">Latest 60 · 1 hour</span>
       </div>
       <div className="trace-toolbar">
         <label className="search-input">
           <Search size={16} />
           <input
             aria-label="Search traces"
-            placeholder="Search trace ID or serviceâ€¦"
+            placeholder="Search trace ID or service…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -57,7 +57,7 @@ export default function TraceExplorer({ onTrace }: { onTrace: (id: string) => vo
                 <tr key={t.trace_id}>
                   <td>
                     <button className="text-link mono" onClick={() => onTrace(t.trace_id)}>
-                      {t.trace_id.slice(0, 16)}â€¦ <ArrowUpRight size={13} />
+                      {t.trace_id.slice(0, 16)}… <ArrowUpRight size={13} />
                     </button>
                   </td>
                   <td>

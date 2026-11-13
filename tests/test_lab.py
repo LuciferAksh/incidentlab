@@ -52,3 +52,24 @@ async def test_recovery_failure_is_visible():
     assert not store.incidents()
     await lab.client.aclose()
     store.close()
+
+
+async def test_service_startup_delay_stays_in_warmup():
+    store = Store(":memory:")
+    lab = Lab(store)
+    attempted = asyncio.Event()
+
+    async def not_ready_yet():
+        attempted.set()
+        raise RuntimeError("services starting")
+
+    lab.reset = not_ready_yet
+    task = asyncio.create_task(lab._background())
+    await asyncio.wait_for(attempted.wait(), timeout=2)
+    assert lab.status["phase"] == "warming"
+    assert not lab.baseline
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await lab.client.aclose()
+    store.close()

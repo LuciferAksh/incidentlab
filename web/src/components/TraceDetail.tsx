@@ -32,7 +32,7 @@ export default function TraceDetail({ id, onClose }: { id: string; onClose: () =
         </p>
       )}
       {!data ? (
-        <Empty title="Loading trace">Fetching collected spansâ€¦</Empty>
+        <Empty title="Loading trace">Fetching collected spans…</Empty>
       ) : (
         <>
           <div className="trace-summary">

@@ -6,7 +6,7 @@ import uuid
 
 import httpx
 
-from incidentlab.diagnosis import diagnose
+from incidentlab.diagnosis import diagnose, groups
 from incidentlab.store import Store
 
 SCENARIOS = [
@@ -111,6 +111,7 @@ class Lab:
         await asyncio.sleep(0.5)  # Allow the SDK batch exporter to flush completed spans.
 
     async def _background(self):
+        warming_since = time.monotonic()
         while True:
             try:
                 if not self.baseline:
@@ -118,9 +119,13 @@ class Lab:
                         await self.reset()
                         start = time.time()
                         await self.load(24)
-                        self.baseline = self.store.window(start, time.time())
-                        if not any(s.kind == 2 for s in self.baseline):
-                            raise RuntimeError("Services responded but no telemetry arrived")
+                        candidate = self.store.window(start, time.time())
+                        observed = groups(candidate)
+                        if any(len(observed.get(service, [])) < 5 for service in self.urls):
+                            raise RuntimeError(
+                                "Waiting for complete baseline telemetry from all three services"
+                            )
+                        self.baseline = candidate
                         self.status = {
                             "phase": "idle",
                             "message": "Live traffic is flowing",
@@ -132,7 +137,8 @@ class Lab:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                self.status = {"phase": "error", "message": str(exc), "scenario": None}
+                phase = "warming" if not self.baseline and time.monotonic() - warming_since < 30 else "error"
+                self.status = {"phase": phase, "message": str(exc), "scenario": None}
                 await asyncio.sleep(3)
 
     def launch(self, scenario_id: str) -> str:

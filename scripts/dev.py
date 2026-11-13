@@ -37,7 +37,7 @@ class RunningLab:
             env["LAB_DB_PATH"] = self.db_path
         (ROOT / "data").mkdir(exist_ok=True)
         try:
-            for name, port in [("api", 8100), ("checkout", 8101), ("inventory", 8102), ("payments", 8103)]:
+            for name, port in [("inventory", 8102), ("payments", 8103), ("checkout", 8101), ("api", 8100)]:
                 log = self.logs.enter_context((ROOT / "data" / f"{name}.log").open("a", encoding="utf-8"))
                 factory = (
                     "incidentlab.api:create_app" if name == "api" else "incidentlab.services:create_service"
@@ -59,6 +59,20 @@ class RunningLab:
                     command, cwd=ROOT, env={**env, "LAB_SERVICE": name}, stdout=log, stderr=log
                 )
                 self.children.append(child)
+                # Readiness, not process creation, is the dependency boundary.
+                ready_deadline = time.monotonic() + 20
+                while time.monotonic() < ready_deadline:
+                    self.check()
+                    try:
+                        endpoint = "api/health" if name == "api" else "health"
+                        with urlopen(f"http://127.0.0.1:{port}/{endpoint}", timeout=1) as response:
+                            if response.status == 200:
+                                break
+                    except (URLError, TimeoutError, ConnectionError):
+                        pass
+                    time.sleep(0.1)
+                else:
+                    raise RuntimeError(f"{name} did not become ready. Inspect data/{name}.log.")
             deadline = time.monotonic() + 35
             while time.monotonic() < deadline:
                 self.check()
@@ -86,7 +100,7 @@ class RunningLab:
 
     def __exit__(self, *_):
         # Stop API first so its recovery shutdown can reach all service processes.
-        for child in self.children:
+        for child in reversed(self.children):
             if child.poll() is None:
                 child.terminate()
                 try:
