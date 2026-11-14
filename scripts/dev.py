@@ -16,6 +16,21 @@ from urllib.request import urlopen
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def check_port(port: int):
+    with socket.socket() as sock:
+        # Match uvicorn's POSIX reuse behavior: TIME_WAIT is not a live listener.
+        # On Windows SO_REUSEADDR can permit overlapping listeners, so keep its
+        # exclusive default behavior there instead.
+        if os.name != "nt":
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError as exc:
+            raise RuntimeError(
+                f"Port {port} is already in use. Stop the other process before starting IncidentLab."
+            ) from exc
+
+
 class RunningLab:
     def __init__(self, python: str = sys.executable, db_path: str | None = None, external: bool = False):
         self.python = python
@@ -27,13 +42,7 @@ class RunningLab:
     def __enter__(self):
         ports = [8100] if self.external else list(range(8100, 8104))
         for port in ports:
-            with socket.socket() as sock:
-                try:
-                    sock.bind(("127.0.0.1", port))
-                except OSError as exc:
-                    raise RuntimeError(
-                        f"Port {port} is already in use. Stop the other process before starting IncidentLab."
-                    ) from exc
+            check_port(port)
         env = {**os.environ, "LAB_CONTROL_TOKEN": secrets.token_urlsafe(32), "PYTHONUNBUFFERED": "1"}
         env["LAB_MODE"] = "external" if self.external else "demo"
         if self.db_path:

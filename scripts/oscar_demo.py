@@ -6,7 +6,6 @@ import json
 import os
 import re
 import signal
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -15,7 +14,7 @@ import venv
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
-from dev import ROOT, RunningLab, interpreter
+from dev import ROOT, RunningLab, check_port, interpreter
 
 UPSTREAM = ROOT / "data/external/django-oscar"
 VENV = ROOT / "data/oscar-venv"
@@ -58,11 +57,7 @@ def setup():
 def shop():
     if not shop_python().exists() or not SHOP_DB.exists():
         raise RuntimeError("Run python scripts/oscar_demo.py setup first")
-    with socket.socket() as listener:
-        try:
-            listener.bind(("127.0.0.1", 8200))
-        except OSError as exc:
-            raise RuntimeError("Port 8200 is already in use") from exc
+    check_port(8200)
     with (ROOT / "data/oscar-shop.log").open("a", encoding="utf-8") as log:
         process = subprocess.Popen(
             [str(shop_python()), str(ADAPTER), "serve"], cwd=ROOT, stdout=log, stderr=log
