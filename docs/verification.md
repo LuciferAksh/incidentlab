@@ -26,4 +26,4 @@ Inspect the overview, run an experiment, open supporting traces, search and filt
 
 The development environment runs Windows. GitHub Actions repeats the automated suite on Ubuntu, Python 3.12, and Node 24. A configured workflow is not evidence of a successful remote run; inspect the actual pushed commit's Actions result.
 
-No load-capacity, cross-machine clock-skew, production-security, or external-service compatibility claims are made. Measured results should always include workload, sample size, and environment.
+The separate Oscar adapter verifies interoperability with a pinned Django Oscar sandbox, including its real catalogue/basket flow and database-lock failures. See [external application verification](external-applications.md). No load-capacity, cross-machine clock-skew, production-security, or compatibility beyond the tested configuration is claimed. Measured results should always include workload, sample size, and environment.

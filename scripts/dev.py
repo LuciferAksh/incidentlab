@@ -17,14 +17,16 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class RunningLab:
-    def __init__(self, python: str = sys.executable, db_path: str | None = None):
+    def __init__(self, python: str = sys.executable, db_path: str | None = None, external: bool = False):
         self.python = python
         self.db_path = db_path
+        self.external = external
         self.children: list[subprocess.Popen] = []
         self.logs = contextlib.ExitStack()
 
     def __enter__(self):
-        for port in range(8100, 8104):
+        ports = [8100] if self.external else list(range(8100, 8104))
+        for port in ports:
             with socket.socket() as sock:
                 try:
                     sock.bind(("127.0.0.1", port))
@@ -33,11 +35,17 @@ class RunningLab:
                         f"Port {port} is already in use. Stop the other process before starting IncidentLab."
                     ) from exc
         env = {**os.environ, "LAB_CONTROL_TOKEN": secrets.token_urlsafe(32), "PYTHONUNBUFFERED": "1"}
+        env["LAB_MODE"] = "external" if self.external else "demo"
         if self.db_path:
             env["LAB_DB_PATH"] = self.db_path
         (ROOT / "data").mkdir(exist_ok=True)
         try:
-            for name, port in [("inventory", 8102), ("payments", 8103), ("checkout", 8101), ("api", 8100)]:
+            processes = (
+                [("api", 8100)]
+                if self.external
+                else [("inventory", 8102), ("payments", 8103), ("checkout", 8101), ("api", 8100)]
+            )
+            for name, port in processes:
                 log = self.logs.enter_context((ROOT / "data" / f"{name}.log").open("a", encoding="utf-8"))
                 factory = (
                     "incidentlab.api:create_app" if name == "api" else "incidentlab.services:create_service"
@@ -77,7 +85,7 @@ class RunningLab:
             while time.monotonic() < deadline:
                 self.check()
                 try:
-                    for port in range(8100, 8104):
+                    for port in ports:
                         with urlopen(
                             f"http://127.0.0.1:{port}/{'api/health' if port == 8100 else 'health'}", timeout=1
                         ) as response:
@@ -119,6 +127,11 @@ def interpreter() -> str:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-build", action="store_true", help="Use the existing dashboard build")
+    parser.add_argument(
+        "--external",
+        action="store_true",
+        help="Collector only: observe an independently instrumented application",
+    )
     args = parser.parse_args()
     os.chdir(ROOT)
     if not args.no_build:
@@ -129,10 +142,16 @@ def main():
     if os.name != "nt":
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
-        with RunningLab(interpreter()) as lab:
+        with RunningLab(interpreter(), external=args.external) as lab:
             print("\nIncidentLab is running at http://127.0.0.1:8100", flush=True)
             print("API reference: http://127.0.0.1:8100/docs", flush=True)
-            print("Warming baseline; logs: data/*.log. Press Ctrl+C to stop.\n", flush=True)
+            print(
+                "External mode: capture a healthy application baseline."
+                if args.external
+                else "Warming built-in service baseline.",
+                flush=True,
+            )
+            print("Logs: data/*.log. Press Ctrl+C to stop.\n", flush=True)
             while True:
                 lab.check()
                 time.sleep(1)

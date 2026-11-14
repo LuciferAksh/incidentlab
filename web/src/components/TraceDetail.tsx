@@ -60,7 +60,7 @@ export default function TraceDetail({ id, onClose }: { id: string; onClose: () =
                       style={{
                         left: `${((span.start_ns - start) / duration) * 100}%`,
                         width: `${Math.max(0.6, ((span.end_ns - span.start_ns) / duration) * 100)}%`,
-                        backgroundColor: span.error ? undefined : serviceColor[span.service],
+                        backgroundColor: span.error ? undefined : (serviceColor[span.service] ?? '#729b78'),
                       }}
                     />
                   </span>

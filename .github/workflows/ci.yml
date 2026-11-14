@@ -30,14 +30,18 @@ jobs:
         run: npm run build
       - name: Python static checks
         run: |
-          python -m ruff check incidentlab scripts tests
-          python -m ruff format --check incidentlab scripts tests
+          python -m ruff check incidentlab scripts tests examples
+          python -m ruff format --check incidentlab scripts tests examples
       - name: Frontend and documentation format
         run: npm run format:check
       - name: Unit and API tests
         run: python -m pytest -q
       - name: Real-service experiments
         run: python scripts/verify.py --start --rounds 2
+      - name: Set up pinned upstream Oscar shop
+        run: python scripts/oscar_demo.py setup
+      - name: Independent shop database failure and recovery
+        run: python scripts/oscar_demo.py verify --rounds 2
       - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -45,4 +49,5 @@ jobs:
           name: verification-evidence
           path: |
             data/verification.json
+            data/oscar-verification.json
             data/*.log

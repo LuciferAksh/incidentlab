@@ -9,8 +9,9 @@ export default function Architecture() {
           <span className="badge success">No API keys required</span>
         </div>
         <p>
-          Three independent HTTP services send OpenTelemetry spans to a local collector. The diagnosis engine
-          reads observed spans; the experiment controller keeps injected fault labels separate.
+          Observe the built-in three-service lab or a separately instrumented application. Both send standard
+          OpenTelemetry spans to the local collector. External mode uses saved application baselines; the
+          built-in experiment controller keeps injected fault labels separate from diagnosis.
         </p>
         <div className="architecture-flow">
           {[

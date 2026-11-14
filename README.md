@@ -6,6 +6,8 @@ IncidentLab is a local distributed-systems laboratory with three independent HTT
 
 This is a working engineering lab, not a production AIOps platform. It needs no paid services, model API keys, or GPU.
 
+**Independent application integration:** connect an instrumented application in collector-only mode, capture its healthy baseline, and analyse new traffic. The included adapter verifies the actual [Django Oscar shop sandbox](docs/external-applications.md), including its CSRF-protected basket flow, a real SQLite lock failure, and recovery. Upstream source is pinned and remains separate from IncidentLab.
+
 ## Run locally
 
 Requires **Python 3.12+**, **Node.js 22.12+ or 24 LTS**, and npm. The default ports are **8100–8103**. Commands work in PowerShell, macOS, and Linux shells; use `python3` where your system requires it.

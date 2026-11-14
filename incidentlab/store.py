@@ -29,6 +29,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS incidents (
                     id TEXT PRIMARY KEY, created REAL NOT NULL, payload TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS baselines (
+                    id TEXT PRIMARY KEY, created REAL NOT NULL, payload TEXT NOT NULL
+                );
             """)
         self._last_prune = 0.0
 
@@ -75,6 +78,21 @@ class Store:
     def incidents(self) -> list[dict]:
         with self.lock:
             rows = self.db.execute("SELECT payload FROM incidents ORDER BY created DESC LIMIT 200").fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def save_baseline(self, baseline: dict):
+        with self.lock, self.db:
+            self.db.execute(
+                "INSERT INTO baselines VALUES(?,?,?)",
+                (baseline["id"], baseline["created_at"], json.dumps(baseline)),
+            )
+            self.db.execute("""DELETE FROM baselines WHERE id IN (
+                SELECT id FROM baselines ORDER BY created DESC LIMIT -1 OFFSET 10
+            )""")
+
+    def baselines(self) -> list[dict]:
+        with self.lock:
+            rows = self.db.execute("SELECT payload FROM baselines ORDER BY created DESC LIMIT 10").fetchall()
         return [json.loads(r[0]) for r in rows]
 
     def close(self):

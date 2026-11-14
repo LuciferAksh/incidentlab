@@ -16,6 +16,45 @@
   --border: #e5e8e0;
   --orange: #c87542;
 }
+.collector-address {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  line-height: 1.8;
+  color: #4c6841;
+}
+.external-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 28px 0;
+}
+.external-services .service-node {
+  min-width: 200px;
+}
+.external-services .service-node .service-icon {
+  margin-right: 10px;
+  color: #658452;
+}
+.external-edge {
+  padding: 8px 0;
+  font-size: 11px;
+  color: #74816a;
+}
+.external-connection {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 22px;
+  margin-bottom: 22px;
+}
+.external-connection .architecture > p {
+  margin-bottom: 18px;
+}
+@media (max-width: 950px) {
+  .external-connection {
+    grid-template-columns: 1fr;
+  }
+}
 * {
   box-sizing: border-box;
 }

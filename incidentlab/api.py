@@ -12,6 +12,7 @@ from google.protobuf.message import DecodeError
 from pydantic import BaseModel
 
 from incidentlab.diagnosis import diagnose, summarize, topology
+from incidentlab.external import AnalysisRequest, BaselineRequest, analyse, baseline_summary, capture
 from incidentlab.lab import SCENARIOS, Lab
 from incidentlab.otlp import decode
 from incidentlab.store import Store
@@ -26,13 +27,27 @@ class ExperimentRequest(BaseModel):
 def create_app(store: Store | None = None, run_lab: bool = True) -> FastAPI:
     database = store or Store(os.getenv("LAB_DB_PATH", "data/incidentlab.db"))
     lab = Lab(database)
+    mode = os.getenv("LAB_MODE", "demo")
+    if mode not in {"demo", "external"}:
+        raise ValueError("LAB_MODE must be demo or external")
+    if mode == "external":
+        saved = database.baselines()
+        if saved:
+            from incidentlab.models import Span
+
+            lab.baseline = [Span.model_validate(s) for s in saved[0]["spans"]]
+        lab.status = {
+            "phase": "external",
+            "message": "External application mode. Export OTLP traces to /v1/traces.",
+            "scenario": None,
+        }
 
     @asynccontextmanager
     async def lifespan(app):
-        if run_lab:
+        if run_lab and mode == "demo":
             await lab.start()
         yield
-        if run_lab:
+        if run_lab and mode == "demo":
             await lab.close()
         else:
             await lab.client.aclose()
@@ -59,7 +74,7 @@ def create_app(store: Store | None = None, run_lab: bool = True) -> FastAPI:
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "version": "0.1.0", "lab": lab.status}
+        return {"status": "ok", "version": "0.1.0", "lab": lab.status, "mode": mode}
 
     @app.post("/v1/traces")
     async def ingest(request: Request):
@@ -102,6 +117,10 @@ def create_app(store: Store | None = None, run_lab: bool = True) -> FastAPI:
         incidents = database.incidents()
         return {
             "now": now,
+            "mode": mode,
+            "expected_services": len({s.service for s in lab.baseline if s.kind == 2})
+            if mode == "external"
+            else 3,
             "window_seconds": 60,
             "lab": lab.status,
             "services": services,
@@ -117,15 +136,49 @@ def create_app(store: Store | None = None, run_lab: bool = True) -> FastAPI:
 
     @app.get("/api/scenarios")
     async def scenarios():
-        return SCENARIOS
+        return SCENARIOS if mode == "demo" else []
 
     @app.post("/api/experiments", status_code=202)
     async def experiment(body: ExperimentRequest):
+        if mode == "external":
+            raise HTTPException(
+                409, "Built-in fault controls are disabled in external mode; use baselines and analyses"
+            )
         try:
             run_id = lab.launch(body.scenario)
         except RuntimeError as exc:
             raise HTTPException(409, str(exc)) from exc
         return {"run_id": run_id, "status": "accepted"}
+
+    @app.get("/api/baselines")
+    async def baselines():
+        return [baseline_summary(b) for b in database.baselines()]
+
+    @app.post("/api/baselines", status_code=201)
+    async def create_baseline(body: BaselineRequest):
+        if mode != "external":
+            raise HTTPException(
+                409, "Start the collector with LAB_MODE=external to capture application baselines"
+            )
+        try:
+            baseline = capture(database, body)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        from incidentlab.models import Span
+
+        lab.baseline = [Span.model_validate(s) for s in baseline["spans"]]
+        return baseline_summary(baseline)
+
+    @app.post("/api/analyses", status_code=201)
+    async def create_analysis(body: AnalysisRequest):
+        if mode != "external":
+            raise HTTPException(409, "External analyses require LAB_MODE=external")
+        try:
+            return analyse(database, body)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @app.get("/api/incidents/{incident_id}")
     async def incident(incident_id: str):
@@ -164,10 +217,12 @@ def create_app(store: Store | None = None, run_lab: bool = True) -> FastAPI:
     @app.get("/api/report")
     async def report():
         incidents = database.incidents()
-        fault_runs = [i for i in incidents if i["ground_truth"]]
-        controls = [i for i in incidents if not i["ground_truth"]]
+        evaluated = [i for i in incidents if i.get("source") != "external"]
+        fault_runs = [i for i in evaluated if i["ground_truth"]]
+        controls = [i for i in evaluated if not i["ground_truth"]]
         return {
             "runs": len(incidents),
+            "external_analyses": len(incidents) - len(evaluated),
             "fault_runs": len(fault_runs),
             "control_runs": len(controls),
             "top1_accuracy": sum(i["top1_correct"] for i in fault_runs) / len(fault_runs)
@@ -177,7 +232,7 @@ def create_app(store: Store | None = None, run_lab: bool = True) -> FastAPI:
             / len(controls)
             if controls
             else None,
-            "scope": "Local injected scenarios only. This is not an independent production benchmark.",
+            "scope": "Accuracy covers labelled local demo experiments only. Unlabelled external analyses are excluded. This is not a production benchmark.",
             "incidents": incidents,
         }
 

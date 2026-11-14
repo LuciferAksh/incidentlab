@@ -3,6 +3,42 @@ import type { Overview } from '../types';
 import { ms, serviceColor } from '../format';
 
 export default function ServiceMap({ overview }: { overview: Overview | null }) {
+  if (overview?.mode === 'external') {
+    return (
+      <div className="service-map">
+        <div className="map-caption">
+          <span className="dot blue" /> Observed application services
+        </div>
+        <div className="external-services">
+          {overview.services.map((service) => (
+            <div className="service-node leaf" key={service.service}>
+              <span className="service-icon">
+                <Server size={18} />
+              </span>
+              <div>
+                <strong>{service.service}</strong>
+                <small>
+                  {ms(service.p95_ms)} p95 · {service.requests} requests
+                </small>
+              </div>
+              <span className={`dot ${service.error_rate > 0.1 ? 'orange' : 'green'}`} />
+            </div>
+          ))}
+        </div>
+        {overview.topology.map((edge) => (
+          <p className="external-edge" key={`${edge.source}-${edge.target}`}>
+            {edge.source} → {edge.target} · {edge.calls} calls · {ms(edge.p95_ms)} p95
+          </p>
+        ))}
+        <div className="map-footer">
+          <GitBranch size={13} />{' '}
+          {overview.topology.length
+            ? 'Edges derived from parent spans'
+            : 'No cross-service edge observed. A single Django app is one service.'}
+        </div>
+      </div>
+    );
+  }
   const nodes = ['checkout', 'inventory', 'payments'];
   return (
     <div className="service-map">

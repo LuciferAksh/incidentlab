@@ -50,7 +50,11 @@ export default function IncidentList({
               </td>
               <td>
                 <span className={`badge ${i.top1_correct ? 'success' : 'warning'}`}>
-                  {i.top1_correct ? 'Target matched' : 'Review result'}
+                  {i.source === 'external'
+                    ? 'External analysis'
+                    : i.top1_correct
+                      ? 'Target matched'
+                      : 'Review result'}
                 </span>
               </td>
               <td className="muted-text">{time(i.created_at)}</td>

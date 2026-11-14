@@ -32,7 +32,8 @@ export type Incident = {
   diagnosis: Diagnosis;
   services: Service[];
   ground_truth: string | null;
-  top1_correct: boolean;
+  top1_correct: boolean | null;
+  source?: 'external';
   timeline?: { at: number; message: string }[];
   trace_count: number;
   duration_seconds: number;
@@ -62,6 +63,8 @@ export type Span = TraceRow & {
   events: { name: string; time_ns: number; attributes: Record<string, unknown> }[];
 };
 export type Overview = {
+  mode: 'demo' | 'external';
+  expected_services: number;
   now: number;
   window_seconds: number;
   lab: { phase: string; message: string; scenario: string | null; run_id?: string; last_run_id?: string };
@@ -74,6 +77,14 @@ export type Overview = {
   diagnosis: Diagnosis;
   incidents: Incident[];
   metric_source: string;
+};
+export type Baseline = {
+  id: string;
+  name: string;
+  start: number;
+  end: number;
+  services: string[];
+  span_count: number;
 };
 export type Report = {
   runs: number;

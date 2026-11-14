@@ -99,13 +99,27 @@ def diagnose(current: list[Span], baseline: list[Span], min_samples: int = 5) ->
             local_errors += bool(row.error and not descendant_failed)
         local_error_rate = local_errors / len(rows)
         score = min(100.0, 10 + 50 * min(1, self_increase / 300) + 70 * local_error_rate + 10 * error_delta)
-        # A local INTERNAL database span is not subtracted as remote dependency time:
-        # it is explicitly described below as evidence, and can strengthen the candidate.
+        # Standard database instrumentations use CLIENT spans and may emit legacy db.system.
+        # A database failure is local dependency evidence, rather than a remote service symptom.
         internal = [
-            s for s in current if s.service == service and s.kind == 1 and "db.system.name" in s.attributes
+            s
+            for s in current
+            if s.service == service
+            and s.kind in {1, 3}
+            and ("db.system.name" in s.attributes or "db.system" in s.attributes)
         ]
         slow_internal = [s for s in internal if s.duration_ms > max(base_ms * 3, 100)]
-        if slow_internal:
+        failed_database = [s for s in internal if s.error]
+        database_exceptions = [
+            event["attributes"]
+            for row in rows
+            if row.error
+            for event in row.events
+            if str(event.get("attributes", {}).get("exception.type", "")).startswith(
+                ("sqlite3.", "django.db.", "psycopg", "sqlalchemy.exc.", "pymysql.", "asyncpg.")
+            )
+        ]
+        if slow_internal or failed_database or database_exceptions:
             score = min(100.0, score + 55)
         evidence = [
             f"p95 {p95:.1f} ms versus baseline {normal_p95:.1f} ms",
@@ -116,6 +130,13 @@ def diagnose(current: list[Span], baseline: list[Span], min_samples: int = 5) ->
             evidence.append(f"{local_errors} failures without a failed child span")
         if slow_internal:
             evidence.append(f"{len(slow_internal)} slow internal operations: {slow_internal[0].name}")
+        if failed_database:
+            evidence.append(f"{len(failed_database)} failed database operations: {failed_database[0].name}")
+        if database_exceptions:
+            exception = database_exceptions[0]
+            evidence.append(
+                f"Database exception {exception['exception.type']}: {str(exception.get('exception.message', ''))[:240]}"
+            )
         exemplar = max(rows, key=lambda s: (s.error, s.duration_ms))
         suspects.append(
             {
@@ -128,8 +149,8 @@ def diagnose(current: list[Span], baseline: list[Span], min_samples: int = 5) ->
                 "error_rate": error_rate,
                 "local_error_rate": local_error_rate,
                 "recommendation": (
-                    "Inspect the database operation and query latency in the linked trace."
-                    if slow_internal
+                    "Inspect the database operation, query latency, and exception events in the linked trace."
+                    if slow_internal or failed_database or database_exceptions
                     else "Inspect the local exception events and recent service changes."
                     if local_errors
                     else "Inspect downstream dependencies before changing this service."

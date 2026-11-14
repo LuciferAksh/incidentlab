@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/django-oscar/django-oscar.git",
+  "commit": "a5ed3c9c17d4cf6ee18aa9795b493172416ab68b",
+  "license": "BSD-3-Clause",
+  "application": "Django Oscar upstream shop sandbox"
+}

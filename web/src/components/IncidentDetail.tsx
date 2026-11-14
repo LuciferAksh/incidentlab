@@ -30,7 +30,11 @@ export default function IncidentDetail({
             <span>{incident.trace_count} observed traces</span>
             <span>{incident.duration_seconds}s window</span>
             <span className={`badge ${incident.top1_correct ? 'success' : 'warning'}`}>
-              {incident.top1_correct ? 'Ground truth matched' : 'Needs investigation'}
+              {incident.source === 'external'
+                ? 'External telemetry'
+                : incident.top1_correct
+                  ? 'Ground truth matched'
+                  : 'Needs investigation'}
             </span>
           </div>
           <h3 className="subheading">Ranked suspects</h3>
@@ -74,9 +78,18 @@ export default function IncidentDetail({
             ))}
           </ol>
           <div className="evaluation-note">
-            <strong>Evaluation only:</strong> injected target was{' '}
-            <code>{incident.ground_truth ?? 'none (healthy control)'}</code>. This label was not passed to the
-            diagnosis engine.
+            {incident.source === 'external' ? (
+              <>
+                Analysis of a separately instrumented application. No fault label was supplied to the
+                diagnosis engine. Confirm the candidate using its supporting trace.
+              </>
+            ) : (
+              <>
+                <strong>Evaluation only:</strong> injected target was{' '}
+                <code>{incident.ground_truth ?? 'none (healthy control)'}</code>. This label was not passed to
+                the diagnosis engine.
+              </>
+            )}
           </div>
           <p className="microcopy">{incident.diagnosis.caveats.join(' ')}</p>
         </>

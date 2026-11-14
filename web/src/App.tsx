@@ -38,6 +38,7 @@ import Architecture from './components/Architecture';
 import Metric from './components/Metric';
 import TraceDetail from './components/TraceDetail';
 import IncidentDetail from './components/IncidentDetail';
+import ExternalPanel from './components/ExternalPanel';
 
 type Tab = 'Overview' | 'Trace explorer' | 'Experiments' | 'Evaluation' | 'Architecture';
 const nav = [
@@ -84,7 +85,10 @@ export default function App() {
       setSubmitting(false);
     }
   }
-  const checkout = overview?.services.find((s) => s.service === 'checkout');
+  const external = overview?.mode === 'external';
+  const checkout = external
+    ? overview?.services[0]
+    : overview?.services.find((s) => s.service === 'checkout');
   const anomalous = overview?.diagnosis.status === 'incident';
   return (
     <div className="app-shell">
@@ -113,8 +117,8 @@ export default function App() {
               onClick={() => setTab(title)}
             >
               <Icon size={18} />
-              <span>{title}</span>
-              {title === 'Experiments' && <span className="nav-count">5</span>}
+              <span>{external && title === 'Experiments' ? 'Applications' : title}</span>
+              {title === 'Experiments' && !external && <span className="nav-count">5</span>}
             </button>
           ))}
         </nav>
@@ -173,7 +177,13 @@ export default function App() {
               <div className="eyebrow">
                 <span className="dot green" /> YOUR SYSTEM, UNDERSTOOD
               </div>
-              <h1>{tab === 'Overview' ? 'System overview' : tab}</h1>
+              <h1>
+                {tab === 'Overview'
+                  ? 'System overview'
+                  : external && tab === 'Experiments'
+                    ? 'Application connection'
+                    : tab}
+              </h1>
               <p>
                 {
                   {
@@ -202,7 +212,7 @@ export default function App() {
                   setTab('Experiments');
                 }}
               >
-                <FlaskConical size={15} /> New experiment
+                <FlaskConical size={15} /> {external ? 'Application setup' : 'New experiment'}
               </button>
             </div>
           </div>
@@ -223,7 +233,7 @@ export default function App() {
               )}
             </div>
           )}
-          {overview && overview.lab.phase !== 'idle' && (
+          {overview && !['idle', 'external'].includes(overview.lab.phase) && (
             <div className={`run-banner ${overview.lab.phase === 'error' ? 'error' : ''}`} role="status">
               {overview.lab.phase === 'error' ? (
                 <TriangleAlert size={17} />
@@ -271,25 +281,33 @@ export default function App() {
                   title="Observed requests"
                   value={overview ? String(overview.request_count) : '—'}
                   icon={<Activity size={17} />}
-                  footer="Checkout requests · last 60 sec"
+                  footer={
+                    external ? 'Application root requests · last 60 sec' : 'Checkout requests · last 60 sec'
+                  }
                 />
                 <Metric
                   title="Request latency"
                   value={checkout ? ms(checkout.p95_ms) : '—'}
                   icon={<Gauge size={17} />}
-                  footer="95th percentile · checkout"
+                  footer={`95th percentile · ${checkout?.service ?? 'awaiting traffic'}`}
                   warning={!!checkout && checkout.p95_ms > 200}
                 />
                 <Metric
                   title="Error rate"
                   value={overview ? percent(overview.error_rate) : '—'}
                   icon={<TriangleAlert size={17} />}
-                  footer="Failed checkout requests"
+                  footer={external ? 'Failed application entry requests' : 'Failed checkout requests'}
                   warning={(overview?.error_rate ?? 0) > 0.1}
                 />
                 <Metric
                   title="Services observed"
-                  value={overview ? `${overview.services.length} / 3` : '—'}
+                  value={
+                    overview
+                      ? external
+                        ? String(overview.services.length)
+                        : `${overview.services.length} / 3`
+                      : '—'
+                  }
                   icon={<Server size={17} />}
                   footer={`${overview?.span_count ?? 0} collected spans · last 60 sec`}
                 />
@@ -300,10 +318,10 @@ export default function App() {
                     <div className="panel-heading spread">
                       <div>
                         <h2>Request latency</h2>
-                        <p>Checkout p95 · milliseconds</p>
+                        <p>{external ? 'Entry request' : 'Checkout'} p95 · milliseconds</p>
                       </div>
                       <span className="legend">
-                        <span className="dot green" /> checkout
+                        <span className="dot green" /> {external ? 'application traffic' : 'checkout'}
                       </span>
                     </div>
                     <Chart overview={overview} />
@@ -311,20 +329,26 @@ export default function App() {
                   <section className="panel">
                     <div className="panel-heading spread">
                       <h2>Service dependency map</h2>
-                      <span className="badge neutral">3-service lab</span>
+                      <span className="badge neutral">
+                        {external ? 'External application' : '3-service lab'}
+                      </span>
                     </div>
                     <ServiceMap overview={overview} />
                   </section>
                 </div>
                 <div className="overview-secondary">
-                  <ExperimentPanel
-                    scenarios={scenarios ?? []}
-                    busy={busy}
-                    selected={scenario}
-                    onSelect={setScenario}
-                    onRun={() => void run()}
-                    compact
-                  />
+                  {external && overview ? (
+                    <ExternalPanel overview={overview} onIncident={setIncidentId} />
+                  ) : (
+                    <ExperimentPanel
+                      scenarios={scenarios ?? []}
+                      busy={busy}
+                      selected={scenario}
+                      onSelect={setScenario}
+                      onRun={() => void run()}
+                      compact
+                    />
+                  )}
                   <div className={`signal-note ${anomalous ? 'has-anomaly' : ''}`}>
                     <span className="small-icon">
                       {anomalous ? <TriangleAlert size={17} /> : <Radio size={17} />}
@@ -348,7 +372,11 @@ export default function App() {
                     <h2>
                       Recent investigations <span className="count">{overview?.incidents.length ?? 0}</span>
                     </h2>
-                    <p>Captured evidence from your controlled experiments</p>
+                    <p>
+                      {external
+                        ? 'Saved observations from your connected application'
+                        : 'Captured evidence from your controlled experiments'}
+                    </p>
                   </div>
                   <button className="text-link" onClick={() => setTab('Experiments')}>
                     View all <ArrowRight size={14} />
@@ -359,7 +387,39 @@ export default function App() {
             </>
           )}
           {tab === 'Trace explorer' && <TraceExplorer onTrace={setTraceId} />}
-          {tab === 'Experiments' && (
+          {tab === 'Experiments' && external && overview && (
+            <>
+              <div className="external-connection">
+                <ExternalPanel overview={overview} onIncident={setIncidentId} />
+                <section className="panel architecture">
+                  <div className="panel-heading">
+                    <h2>Observe a separate application</h2>
+                  </div>
+                  <p>
+                    Instrument your application with the OpenTelemetry SDK, choose a unique service.name, and
+                    export uncompressed OTLP/HTTP protobuf traces to the collector. Drive healthy traffic
+                    first, then capture a baseline. New requests can be analysed against that baseline.
+                  </p>
+                  <p>
+                    For the verified Django Oscar example, run the separate shop at port 8200. Its catalogue,
+                    product forms, basket, and database come from the pinned upstream open-source application.
+                  </p>
+                  <p>
+                    Faults are controlled outside IncidentLab in this mode. Baseline and analysis windows must
+                    not overlap. External analyses have no ground-truth label and are excluded from demo
+                    accuracy metrics.
+                  </p>
+                </section>
+              </div>
+              <section className="panel">
+                <div className="panel-heading">
+                  <h2>Application investigations</h2>
+                </div>
+                <IncidentList incidents={overview.incidents} onSelect={setIncidentId} />
+              </section>
+            </>
+          )}
+          {tab === 'Experiments' && !external && (
             <>
               <div className="experiment-page">
                 <ExperimentPanel

@@ -29,8 +29,8 @@ export default function Evaluation({ onIncident }: { onIncident: (id: string) =>
         <div>
           <strong>Evidence before claims.</strong>
           <p>
-            Ground truth is attached after diagnosis. These results measure local injected scenarios, not
-            production accuracy.
+            Demo accuracy uses labelled local experiments. External application analyses have no supplied
+            ground truth and are excluded from accuracy and false-positive calculations.
           </p>
         </div>
         <button className="button secondary" onClick={() => void download()}>

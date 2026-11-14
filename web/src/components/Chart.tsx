@@ -9,7 +9,7 @@ export default function Chart({ overview }: { overview: Overview | null }) {
     <div
       className="chart"
       role="img"
-      aria-label="Checkout p95 latency over the last 60 seconds in five-second buckets"
+      aria-label="Entry request p95 latency over the last 60 seconds in five-second buckets"
     >
       <svg viewBox="0 0 700 190" preserveAspectRatio="none">
         <defs>
